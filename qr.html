@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Herramientas - Toyota</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.0.4/dist/jsQR.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 768px;
+            width: 100%;
+            margin: auto;
+            padding: 2rem;
+        }
+        #qr-video {
+            width: 100%;
+            height: auto;
+            border-radius: 0.75rem;
+        }
+        #output-canvas {
+            display: none;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+
+    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">Registro de Herramientas</h1>
+        <p class="text-gray-600 text-center mb-6">
+            Escanea el código QR de un cajón para registrar la herramienta.
+        </p>
+
+        <!-- Contenedor del escáner y la cámara -->
+        <div class="relative w-full rounded-xl overflow-hidden shadow-md bg-gray-200">
+            <video id="qr-video" class="w-full"></video>
+            <canvas id="output-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            <div id="loadingMessage" class="absolute inset-0 flex items-center justify-center text-gray-700 bg-gray-300 bg-opacity-75">
+                Activando la cámara...
+            </div>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+            <button id="startButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors">
+                Iniciar Escáner
+            </button>
+            <button id="stopButton" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors hidden">
+                Detener Escáner
+            </button>
+        </div>
+        
+        <!-- Contenedor de los resultados -->
+        <div id="resultContainer" class="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Información de la herramienta:</h2>
+            <div id="data-display" class="space-y-3">
+                <!-- Los datos se mostrarán aquí -->
+            </div>
+            
+            <div id="actionForm" class="mt-6 hidden">
+                <input type="text" id="userNameInput" placeholder="Introduce tu nombre" class="w-full p-3 rounded-lg border border-gray-300 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="confirmBorrowButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors">
+                    Confirmar Toma
+                </button>
+            </div>
+
+            <div class="mt-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                <button id="returnButton" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors hidden">
+                    Devolver Herramienta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales para mensajes -->
+    <div id="statusModal" class="modal">
+        <div class="modal-content text-center">
+            <h3 id="modalTitle" class="text-2xl font-bold mb-4"></h3>
+            <p id="modalMessage" class="text-gray-700 mb-6"></p>
+            <button id="closeModal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl">
+                Cerrar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('qr-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const canvas = canvasElement.getContext('2d');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const resultContainer = document.getElementById('resultContainer');
+        const dataDisplay = document.getElementById('data-display');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const actionForm = document.getElementById('actionForm');
+        const userNameInput = document.getElementById('userNameInput');
+        const confirmBorrowButton = document.getElementById('confirmBorrowButton');
+        const returnButton = document.getElementById('returnButton');
+        const statusModal = document.getElementById('statusModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const closeModalButton = document.getElementById('closeModal');
+        
+        let isScanning = false;
+        let stream = null;
+        let currentToolId = null;
+
+        // Base de datos de ejemplo en memoria
+        const herramientasDB = {
+            "Cajon-01": {
+                herramienta: "Taladro de Impacto",
+                persona: null,
+                fecha_salida: null,
+                fecha_devolucion: null,
+                estado: "Disponible"
+            },
+            "Cajon-02": {
+                herramienta: "Martillo de Bola",
+                persona: null,
+                fecha_salida: null,
+                fecha_devolucion: null,
+                estado: "Disponible"
+            },
+            "Cajon-03": {
+                herramienta: "Juego de Llaves Allen",
+                persona: "Carlos",
+                fecha_salida: "2025-09-10 10:30",
+                fecha_devolucion: null,
+                estado: "En uso"
+            },
+            "Cajon-04": {
+                herramienta: "Sierra de Mano",
+                persona: null,
+                fecha_salida: null,
+                fecha_devolucion: null,
+                estado: "Dañada"
+            },
+            "Cajon-05": {
+                herramienta: "Destornillador Phillips",
+                persona: "Lucía",
+                fecha_salida: "2025-09-10 15:00",
+                fecha_devolucion: null,
+                estado: "En uso"
+            }
+        };
+
+        const showModal = (title, message) => {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            statusModal.style.display = 'flex';
+        };
+
+        const hideModal = () => {
+            statusModal.style.display = 'none';
+        };
+
+        closeModalButton.addEventListener('click', hideModal);
+        
+        // Función para iniciar el escáner
+        const startScanner = () => {
+            isScanning = true;
+            loadingMessage.style.display = 'flex';
+            resultContainer.classList.add('hidden');
+            startButton.classList.add('hidden');
+            stopButton.classList.remove('hidden');
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(function(s) {
+                    stream = s;
+                    video.srcObject = stream;
+                    video.setAttribute("playsinline", true);
+                    video.play();
+                    requestAnimationFrame(tick);
+                    loadingMessage.style.display = 'none';
+                })
+                .catch(function(e) {
+                    isScanning = false;
+                    loadingMessage.style.display = 'none';
+                    showModal("Error", "No se pudo acceder a la cámara. Revisa los permisos.");
+                    startButton.classList.remove('hidden');
+                    stopButton.classList.add('hidden');
+                });
+        };
+
+        // Función para detener el escáner
+        const stopScanner = () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            isScanning = false;
+            video.srcObject = null;
+            startButton.classList.remove('hidden');
+            stopButton.classList.add('hidden');
+        };
+
+        const tick = () => {
+            if (!isScanning) return;
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.hidden = false;
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    stopScanner();
+                    processQR(code.data);
+                }
+            }
+            requestAnimationFrame(tick);
+        };
+
+        // Función para procesar los datos del QR
+        const processQR = (data) => {
+            try {
+                const qrData = JSON.parse(data);
+                const toolId = qrData.id_cajon;
+                
+                if (herramientasDB[toolId]) {
+                    currentToolId = toolId;
+                    const toolInfo = herramientasDB[toolId];
+                    displayToolInfo(toolInfo, toolId);
+                    resultContainer.classList.remove('hidden');
+                } else {
+                    showModal("Error", `ID de cajón "${toolId}" no encontrado en la base de datos.`);
+                }
+            } catch (e) {
+                showModal("Error", "Formato de código QR inválido. Debe ser un JSON con 'id_cajon'.");
+            }
+        };
+
+        const displayToolInfo = (info, id) => {
+            dataDisplay.innerHTML = `
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-600 mr-2">Herramienta:</span>
+                    <span class="text-gray-800">${info.herramienta}</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-600 mr-2">Estado:</span>
+                    <span class="text-gray-800 font-bold">${info.estado}</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-600 mr-2">Cajón ID:</span>
+                    <span class="text-gray-800">${id}</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-600 mr-2">Tomada por:</span>
+                    <span class="text-gray-800">${info.persona || "Nadie"}</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-600 mr-2">Fecha de salida:</span>
+                    <span class="text-gray-800">${info.fecha_salida || "N/A"}</span>
+                </div>
+            `;
+            
+            // Ocultar/mostrar botones y formulario según el estado
+            if (info.estado === "Disponible") {
+                actionForm.classList.remove('hidden');
+                returnButton.classList.add('hidden');
+            } else if (info.estado === "En uso") {
+                actionForm.classList.add('hidden');
+                returnButton.classList.remove('hidden');
+            } else {
+                 actionForm.classList.add('hidden');
+                 returnButton.classList.add('hidden');
+            }
+        };
+
+        // Evento para confirmar la toma de la herramienta
+        confirmBorrowButton.addEventListener('click', () => {
+            const userName = userNameInput.value.trim();
+            const tool = herramientasDB[currentToolId];
+
+            if (userName === "") {
+                showModal("Error", "Por favor, introduce tu nombre.");
+                return;
+            }
+
+            if (tool.estado === "Disponible") {
+                tool.persona = userName;
+                tool.fecha_salida = new Date().toLocaleString();
+                tool.estado = "En uso";
+                showModal("Éxito", `¡Herramienta "${tool.herramienta}" tomada por ${userName} correctamente!`);
+                displayToolInfo(tool, currentToolId);
+            } else {
+                showModal("Error", `La herramienta no está disponible. Estado actual: ${tool.estado}`);
+            }
+        });
+        
+        // Evento para devolver la herramienta
+        returnButton.addEventListener('click', () => {
+            const tool = herramientasDB[currentToolId];
+            if (tool.estado === "En uso") {
+                tool.fecha_devolucion = new Date().toLocaleString();
+                tool.estado = "Disponible"; // Podría ser "Dañada"
+                tool.persona = null;
+                tool.fecha_salida = null;
+                showModal("Éxito", `¡Herramienta "${tool.herramienta}" devuelta correctamente!`);
+                displayToolInfo(tool, currentToolId);
+            } else {
+                showModal("Error", `La herramienta no está actualmente "En uso". Estado actual: ${tool.estado}`);
+            }
+        });
+
+        startButton.addEventListener('click', startScanner);
+        stopButton.addEventListener('click', stopScanner);
+
+        // Iniciar el escáner al cargar la página si el usuario lo permite
+        window.addEventListener('load', () => {
+            // startScanner(); 
+        });
+    </script>
+</body>
+</html>
