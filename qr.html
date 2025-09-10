@@ -59,11 +59,17 @@
     <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8">
         <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">Registro de Herramientas</h1>
         <p class="text-gray-600 text-center mb-6">
-            Escanea el código QR de un cajón para registrar la herramienta.
+            Introduce tu nombre y escanea un código QR para registrar la herramienta.
         </p>
+        
+        <!-- Contenedor del nombre -->
+        <div class="mb-6">
+            <label for="userNameInput" class="block text-gray-700 font-semibold mb-2">Tu Nombre:</label>
+            <input type="text" id="userNameInput" placeholder="Introduce tu nombre" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
 
         <!-- Contenedor del escáner y la cámara -->
-        <div class="relative w-full rounded-xl overflow-hidden shadow-md bg-gray-200">
+        <div id="scannerContainer" class="relative w-full rounded-xl overflow-hidden shadow-md bg-gray-200 hidden">
             <video id="qr-video" class="w-full"></video>
             <canvas id="output-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
             <div id="loadingMessage" class="absolute inset-0 flex items-center justify-center text-gray-700 bg-gray-300 bg-opacity-75">
@@ -89,18 +95,36 @@
             </div>
             
             <div id="actionForm" class="mt-6 hidden">
-                <input type="text" id="userNameInput" placeholder="Introduce tu nombre" class="w-full p-3 rounded-lg border border-gray-300 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <button id="confirmBorrowButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors">
                     Confirmar Toma
                 </button>
             </div>
 
-            <div class="mt-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                <button id="returnButton" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors hidden">
-                    Devolver Herramienta
+            <div id="returnForm" class="mt-6 hidden">
+                <p class="text-gray-700 font-semibold mb-2">Estado de la herramienta al devolver:</p>
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="returnStatus" value="Disponible" checked class="form-radio text-green-600">
+                        <span class="ml-2 text-gray-700">Disponible</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="returnStatus" value="Necesita reparación" class="form-radio text-yellow-600">
+                        <span class="ml-2 text-gray-700">Necesita reparación</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="returnStatus" value="Dañada" class="form-radio text-red-600">
+                        <span class="ml-2 text-gray-700">Dañada</span>
+                    </label>
+                </div>
+                <button id="confirmReturnButton" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors mt-4">
+                    Confirmar Devolución
                 </button>
             </div>
         </div>
+
+        <button id="exportButton" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors mt-6">
+            Exportar Registro (CSV)
+        </button>
     </div>
 
     <!-- Modales para mensajes -->
@@ -126,54 +150,60 @@
         const actionForm = document.getElementById('actionForm');
         const userNameInput = document.getElementById('userNameInput');
         const confirmBorrowButton = document.getElementById('confirmBorrowButton');
-        const returnButton = document.getElementById('returnButton');
+        const returnForm = document.getElementById('returnForm');
+        const confirmReturnButton = document.getElementById('confirmReturnButton');
         const statusModal = document.getElementById('statusModal');
         const modalTitle = document.getElementById('modalTitle');
         const modalMessage = document.getElementById('modalMessage');
         const closeModalButton = document.getElementById('closeModal');
+        const scannerContainer = document.getElementById('scannerContainer');
+        const exportButton = document.getElementById('exportButton');
         
         let isScanning = false;
         let stream = null;
         let currentToolId = null;
+        let lastScannedToolId = null; // Variable para controlar el último QR escaneado
 
         // Base de datos de ejemplo en memoria
         const herramientasDB = {
-            "Cajon-01": {
-                herramienta: "Taladro de Impacto",
+            "escenario1": {
+                herramienta: "llave fija, punta llave fija, taladro",
                 persona: null,
                 fecha_salida: null,
                 fecha_devolucion: null,
                 estado: "Disponible"
             },
-            "Cajon-02": {
-                herramienta: "Martillo de Bola",
+            "escenario2": {
+                herramienta: "lavve fija, taladro, punta llave fija, mazo",
                 persona: null,
                 fecha_salida: null,
                 fecha_devolucion: null,
                 estado: "Disponible"
             },
-            "Cajon-03": {
-                herramienta: "Juego de Llaves Allen",
+            "escenario3": {
+                herramienta: "punta estrella, taladro, mazo, caja tronillos",
                 persona: "Carlos",
                 fecha_salida: "2025-09-10 10:30",
                 fecha_devolucion: null,
                 estado: "En uso"
             },
-            "Cajon-04": {
-                herramienta: "Sierra de Mano",
+            "escenario4": {
+                herramienta: "lima",
                 persona: null,
                 fecha_salida: null,
                 fecha_devolucion: null,
                 estado: "Dañada"
             },
-            "Cajon-05": {
-                herramienta: "Destornillador Phillips",
+            "escalera": {
+                herramienta: "broca 10mm, macho de rocsa 8 y 10mm, llave allen 8mm, punta estrella,taladro, caja tornillos, casquillo roscado",
                 persona: "Lucía",
                 fecha_salida: "2025-09-10 15:00",
                 fecha_devolucion: null,
                 estado: "En uso"
             }
         };
+
+        const registro = []; // Para el registro histórico de movimientos
 
         const showModal = (title, message) => {
             modalTitle.textContent = title;
@@ -189,11 +219,23 @@
         
         // Función para iniciar el escáner
         const startScanner = () => {
+            const userName = userNameInput.value.trim();
+            if (userName === "") {
+                showModal("Error", "Por favor, introduce tu nombre antes de escanear.");
+                return;
+            }
+            if (lastScannedToolId !== null) {
+                showModal("Aviso", "Debes devolver la herramienta actual antes de tomar otra.");
+                return;
+            }
+
             isScanning = true;
             loadingMessage.style.display = 'flex';
             resultContainer.classList.add('hidden');
             startButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
+            scannerContainer.classList.remove('hidden');
+            userNameInput.disabled = true;
 
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
                 .then(function(s) {
@@ -210,6 +252,8 @@
                     showModal("Error", "No se pudo acceder a la cámara. Revisa los permisos.");
                     startButton.classList.remove('hidden');
                     stopButton.classList.add('hidden');
+                    scannerContainer.classList.add('hidden');
+                    userNameInput.disabled = false;
                 });
         };
 
@@ -221,8 +265,13 @@
             }
             isScanning = false;
             video.srcObject = null;
-            startButton.classList.remove('hidden');
+            // Solo muestra el botón de inicio si no hay una herramienta en uso
+            if (lastScannedToolId === null) {
+                startButton.classList.remove('hidden');
+            }
             stopButton.classList.add('hidden');
+            scannerContainer.classList.add('hidden');
+            userNameInput.disabled = false;
         };
 
         const tick = () => {
@@ -252,17 +301,40 @@
             try {
                 const qrData = JSON.parse(data);
                 const toolId = qrData.id_cajon;
-                
+
                 if (herramientasDB[toolId]) {
-                    currentToolId = toolId;
                     const toolInfo = herramientasDB[toolId];
-                    displayToolInfo(toolInfo, toolId);
-                    resultContainer.classList.remove('hidden');
+                    currentToolId = toolId;
+                    
+                    if (lastScannedToolId === null) {
+                        // Es una toma
+                        if (toolInfo.estado === "Disponible") {
+                            lastScannedToolId = toolId;
+                            displayToolInfo(toolInfo, toolId);
+                            resultContainer.classList.remove('hidden');
+                            actionForm.classList.remove('hidden');
+                            returnForm.classList.add('hidden');
+                        } else {
+                            showModal("Aviso", `La herramienta no está disponible. Estado: ${toolInfo.estado}.`);
+                        }
+                    } else if (lastScannedToolId === toolId) {
+                        // Es una devolución
+                        displayToolInfo(toolInfo, toolId);
+                        resultContainer.classList.remove('hidden');
+                        actionForm.classList.add('hidden');
+                        returnForm.classList.remove('hidden');
+                    } else {
+                        // El usuario ha escaneado un QR diferente
+                        showModal("Error", "Debes escanear el mismo código QR que tomaste para registrar la devolución.");
+                        startButton.classList.remove('hidden'); // Reactivar el escáner
+                    }
                 } else {
                     showModal("Error", `ID de cajón "${toolId}" no encontrado en la base de datos.`);
+                    startButton.classList.remove('hidden'); // Reactivar el escáner
                 }
             } catch (e) {
                 showModal("Error", "Formato de código QR inválido. Debe ser un JSON con 'id_cajon'.");
+                startButton.classList.remove('hidden'); // Reactivar el escáner
             }
         };
 
@@ -289,18 +361,6 @@
                     <span class="text-gray-800">${info.fecha_salida || "N/A"}</span>
                 </div>
             `;
-            
-            // Ocultar/mostrar botones y formulario según el estado
-            if (info.estado === "Disponible") {
-                actionForm.classList.remove('hidden');
-                returnButton.classList.add('hidden');
-            } else if (info.estado === "En uso") {
-                actionForm.classList.add('hidden');
-                returnButton.classList.remove('hidden');
-            } else {
-                 actionForm.classList.add('hidden');
-                 returnButton.classList.add('hidden');
-            }
         };
 
         // Evento para confirmar la toma de la herramienta
@@ -308,44 +368,96 @@
             const userName = userNameInput.value.trim();
             const tool = herramientasDB[currentToolId];
 
-            if (userName === "") {
-                showModal("Error", "Por favor, introduce tu nombre.");
-                return;
-            }
-
             if (tool.estado === "Disponible") {
+                const now = new Date();
                 tool.persona = userName;
-                tool.fecha_salida = new Date().toLocaleString();
+                tool.fecha_salida = now.toLocaleString();
                 tool.estado = "En uso";
+
+                // Agregar al registro histórico
+                registro.push({
+                    herramienta: tool.herramienta,
+                    cajon: currentToolId,
+                    persona: userName,
+                    tipo: "Toma",
+                    fecha_hora: now.toLocaleString(),
+                    estado_devuelto: null
+                });
+
                 showModal("Éxito", `¡Herramienta "${tool.herramienta}" tomada por ${userName} correctamente!`);
                 displayToolInfo(tool, currentToolId);
+                resultContainer.classList.add('hidden');
+                stopButton.classList.add('hidden'); // Esconder el botón de detener
+                startButton.classList.add('hidden'); // Esconder el botón de iniciar
             } else {
                 showModal("Error", `La herramienta no está disponible. Estado actual: ${tool.estado}`);
             }
         });
         
-        // Evento para devolver la herramienta
-        returnButton.addEventListener('click', () => {
+        // Evento para confirmar la devolución
+        confirmReturnButton.addEventListener('click', () => {
             const tool = herramientasDB[currentToolId];
-            if (tool.estado === "En uso") {
-                tool.fecha_devolucion = new Date().toLocaleString();
-                tool.estado = "Disponible"; // Podría ser "Dañada"
+            const returnStatus = document.querySelector('input[name="returnStatus"]:checked').value;
+            const now = new Date();
+
+            if (tool.estado === "En uso" && tool.persona === userNameInput.value.trim() && currentToolId === lastScannedToolId) {
+                tool.fecha_devolucion = now.toLocaleString();
+                tool.estado = returnStatus;
+                
+                // Agregar al registro histórico
+                registro.push({
+                    herramienta: tool.herramienta,
+                    cajon: currentToolId,
+                    persona: userNameInput.value.trim(),
+                    tipo: "Devolución",
+                    fecha_hora: now.toLocaleString(),
+                    estado_devuelto: returnStatus
+                });
+
                 tool.persona = null;
                 tool.fecha_salida = null;
-                showModal("Éxito", `¡Herramienta "${tool.herramienta}" devuelta correctamente!`);
+                tool.fecha_devolucion = null;
+
+                // Restablecer el estado
+                lastScannedToolId = null;
+
+                showModal("Éxito", `¡Herramienta "${tool.herramienta}" devuelta correctamente! Estado: ${returnStatus}`);
                 displayToolInfo(tool, currentToolId);
+                resultContainer.classList.add('hidden');
+                startButton.classList.remove('hidden'); // Mostrar el botón de iniciar para tomar otra herramienta
             } else {
-                showModal("Error", `La herramienta no está actualmente "En uso". Estado actual: ${tool.estado}`);
+                showModal("Error", "No puedes devolver esta herramienta. Es posible que no la hayas tomado tú.");
             }
+        });
+
+        // Evento para exportar a CSV
+        exportButton.addEventListener('click', () => {
+            if (registro.length === 0) {
+                showModal("Aviso", "No hay datos de registro para exportar.");
+                return;
+            }
+
+            const headers = ["Herramienta", "Cajon", "Persona", "Tipo", "Fecha_Hora", "Estado_Devuelto"];
+            const csvRows = [
+                headers.join(';'),
+                ...registro.map(row => headers.map(header => `"${row[header.toLowerCase()]}"`).join(';'))
+            ];
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "registro_herramientas.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showModal("Éxito", "El registro se ha exportado a un archivo CSV.");
         });
 
         startButton.addEventListener('click', startScanner);
         stopButton.addEventListener('click', stopScanner);
 
-        // Iniciar el escáner al cargar la página si el usuario lo permite
-        window.addEventListener('load', () => {
-            // startScanner(); 
-        });
     </script>
 </body>
 </html>
