@@ -68,6 +68,12 @@
             <input type="text" id="userNameInput" placeholder="Introduce tu nombre" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
 
+        <!-- Selector de cámara -->
+        <div id="camera-select-container" class="mb-6 hidden">
+            <label for="camera-select" class="block text-gray-700 font-semibold mb-2">Seleccionar Cámara:</label>
+            <select id="camera-select" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+        </div>
+
         <!-- Contenedor del escáner y la cámara -->
         <div id="scannerContainer" class="relative w-full rounded-xl overflow-hidden shadow-md bg-gray-200 hidden">
             <video id="qr-video" class="w-full"></video>
@@ -158,6 +164,8 @@
         const closeModalButton = document.getElementById('closeModal');
         const scannerContainer = document.getElementById('scannerContainer');
         const exportButton = document.getElementById('exportButton');
+        const cameraSelect = document.getElementById('camera-select');
+        const cameraSelectContainer = document.getElementById('camera-select-container');
         
         let isScanning = false;
         let stream = null;
@@ -216,9 +224,33 @@
         };
 
         closeModalButton.addEventListener('click', hideModal);
+
+        // Función para obtener las cámaras y llenar el select
+        const getCameras = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                if (videoDevices.length > 0) {
+                    cameraSelectContainer.classList.remove('hidden');
+                    cameraSelect.innerHTML = ''; // Limpiar opciones existentes
+                    videoDevices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.deviceId;
+                        option.textContent = device.label || `Cámara ${cameraSelect.options.length + 1}`;
+                        cameraSelect.appendChild(option);
+                    });
+                } else {
+                    cameraSelectContainer.classList.add('hidden');
+                    showModal("Error", "No se encontraron cámaras disponibles.");
+                }
+            } catch (e) {
+                showModal("Error", "No se pudo acceder a la lista de cámaras. Revisa los permisos.");
+            }
+        };
         
         // Función para iniciar el escáner
-        const startScanner = () => {
+        const startScanner = async () => {
             const userName = userNameInput.value.trim();
             if (userName === "") {
                 showModal("Error", "Por favor, introduce tu nombre antes de escanear.");
@@ -236,25 +268,29 @@
             stopButton.classList.remove('hidden');
             scannerContainer.classList.remove('hidden');
             userNameInput.disabled = true;
+            cameraSelect.disabled = true;
 
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                .then(function(s) {
-                    stream = s;
-                    video.srcObject = stream;
-                    video.setAttribute("playsinline", true);
-                    video.play();
-                    requestAnimationFrame(tick);
-                    loadingMessage.style.display = 'none';
-                })
-                .catch(function(e) {
-                    isScanning = false;
-                    loadingMessage.style.display = 'none';
-                    showModal("Error", "No se pudo acceder a la cámara. Revisa los permisos.");
-                    startButton.classList.remove('hidden');
-                    stopButton.classList.add('hidden');
-                    scannerContainer.classList.add('hidden');
-                    userNameInput.disabled = false;
-                });
+            const selectedDeviceId = cameraSelect.value;
+            const constraints = selectedDeviceId ? { video: { deviceId: selectedDeviceId } } : { video: true };
+            
+            try {
+                const s = await navigator.mediaDevices.getUserMedia(constraints);
+                stream = s;
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                requestAnimationFrame(tick);
+                loadingMessage.style.display = 'none';
+            } catch (e) {
+                isScanning = false;
+                loadingMessage.style.display = 'none';
+                showModal("Error", "No se pudo acceder a la cámara. Revisa los permisos.");
+                startButton.classList.remove('hidden');
+                stopButton.classList.add('hidden');
+                scannerContainer.classList.add('hidden');
+                userNameInput.disabled = false;
+                cameraSelect.disabled = false;
+            }
         };
 
         // Función para detener el escáner
@@ -272,6 +308,18 @@
             stopButton.classList.add('hidden');
             scannerContainer.classList.add('hidden');
             userNameInput.disabled = false;
+            cameraSelect.disabled = false;
+        };
+        
+        const drawFocusRectangle = (color) => {
+            canvas.beginPath();
+            const rectSize = Math.min(canvasElement.width, canvasElement.height) * 0.7;
+            const x = (canvasElement.width - rectSize) / 2;
+            const y = (canvasElement.height - rectSize) / 2;
+            canvas.strokeStyle = color;
+            canvas.lineWidth = 4;
+            canvas.rect(x, y, rectSize, rectSize);
+            canvas.stroke();
         };
 
         const tick = () => {
@@ -287,13 +335,29 @@
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
-
+                
                 if (code) {
+                    drawFocusRectangle("green");
+                    drawLine(code.location.topLeftCorner, code.location.topRightCorner, "green");
+                    drawLine(code.location.topRightCorner, code.location.bottomRightCorner, "green");
+                    drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, "green");
+                    drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, "green");
                     stopScanner();
                     processQR(code.data);
+                } else {
+                    drawFocusRectangle("red");
                 }
             }
             requestAnimationFrame(tick);
+        };
+
+        const drawLine = (begin, end, color) => {
+            canvas.beginPath();
+            canvas.moveTo(begin.x, begin.y);
+            canvas.lineTo(end.x, end.y);
+            canvas.lineWidth = 4;
+            canvas.strokeStyle = color;
+            canvas.stroke();
         };
 
         // Función para procesar los datos del QR
@@ -458,7 +522,8 @@
         startButton.addEventListener('click', startScanner);
         stopButton.addEventListener('click', stopScanner);
 
+        // Llama a esta función al cargar la página para rellenar el selector de cámaras
+        window.addEventListener('load', getCameras);
     </script>
 </body>
 </html>
-
