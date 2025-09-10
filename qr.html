@@ -3,511 +3,471 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Herramientas - Toyota</title>
+    <title>Registro de Herramientas</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.0.4/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .container {
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .card {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-secondary {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            border: 1px solid #d1d5db;
+        }
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+        }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .status-disponible {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status-en-uso {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .status-danada {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .status-reparacion {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .container {
-            max-width: 768px;
-            width: 100%;
-            margin: auto;
-            padding: 2rem;
-        }
-        #qr-video {
-            width: 100%;
-            height: auto;
-            border-radius: 0.75rem;
-        }
-        #output-canvas {
-            display: none;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgb(0,0,0);
-            background-color: rgba(0,0,0,0.4);
-            justify-content: center;
-            align-items: center;
+            z-index: 1000;
         }
         .modal-content {
-            background-color: #fff;
-            padding: 24px;
-            border-radius: 12px;
-            max-width: 400px;
-            width: 90%;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8">
-        <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">Registro de Herramientas</h1>
-        <p class="text-gray-600 text-center mb-6">
-            Introduce tu nombre y escanea un código QR para registrar la herramienta.
-        </p>
-        
-        <!-- Contenedor del nombre -->
-        <div class="mb-6">
-            <label for="userNameInput" class="block text-gray-700 font-semibold mb-2">Tu Nombre:</label>
-            <input type="text" id="userNameInput" placeholder="Introduce tu nombre" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <div id="app" class="w-full max-w-md">
+
+        <!-- Initial View -->
+        <div id="initial-view" class="card space-y-4">
+            <h1 class="text-2xl font-bold text-gray-800">Control de Herramientas</h1>
+            <p class="text-gray-600">Por favor, introduce tu nombre para continuar.</p>
+            <input type="text" id="nombre-usuario" placeholder="Tu Nombre" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+            <button id="iniciar-app-btn" class="w-full btn btn-primary">Iniciar</button>
         </div>
 
-        <!-- Selector de cámara -->
-        <div id="camera-select-container" class="mb-6 hidden">
-            <label for="camera-select" class="block text-gray-700 font-semibold mb-2">Seleccionar Cámara:</label>
-            <select id="camera-select" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
-        </div>
-
-        <!-- Contenedor del escáner y la cámara -->
-        <div id="scannerContainer" class="relative w-full rounded-xl overflow-hidden shadow-md bg-gray-200 hidden">
-            <video id="qr-video" class="w-full"></video>
-            <canvas id="output-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
-            <div id="loadingMessage" class="absolute inset-0 flex items-center justify-center text-gray-700 bg-gray-300 bg-opacity-75">
-                Activando la cámara...
+        <!-- Scanner View -->
+        <div id="scanner-view" class="hidden flex flex-col items-center justify-center text-center">
+            <div class="relative w-full h-80 bg-gray-300 rounded-lg overflow-hidden">
+                <video id="video" class="absolute inset-0 w-full h-full object-cover"></video>
+                <div id="overlay" class="absolute inset-0 w-full h-full border-4 border-red-500 rounded-lg transition-colors duration-200"></div>
             </div>
+            <p class="mt-4 text-gray-600" id="scanner-message">Escanea el código QR del cajón.</p>
+            <button id="stop-scanner-btn" class="mt-4 btn btn-secondary">Detener Escáner</button>
         </div>
 
-        <!-- Botones de acción -->
-        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
-            <button id="startButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors">
-                Iniciar Escáner
-            </button>
-            <button id="stopButton" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors hidden">
-                Detener Escáner
-            </button>
-        </div>
-        
-        <!-- Contenedor de los resultados -->
-        <div id="resultContainer" class="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Información de la herramienta:</h2>
-            <div id="data-display" class="space-y-3">
-                <!-- Los datos se mostrarán aquí -->
-            </div>
-            
-            <div id="actionForm" class="mt-6 hidden">
-                <button id="confirmBorrowButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors">
-                    Confirmar Toma
-                </button>
-            </div>
-
-            <div id="returnForm" class="mt-6 hidden">
-                <p class="text-gray-700 font-semibold mb-2">Estado de la herramienta al devolver:</p>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="returnStatus" value="Disponible" checked class="form-radio text-green-600">
-                        <span class="ml-2 text-gray-700">Disponible</span>
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="returnStatus" value="Necesita reparación" class="form-radio text-yellow-600">
-                        <span class="ml-2 text-gray-700">Necesita reparación</span>
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="returnStatus" value="Dañada" class="form-radio text-red-600">
-                        <span class="ml-2 text-gray-700">Dañada</span>
-                    </label>
+        <!-- Confirm and Return View -->
+        <div id="confirm-view" class="hidden card space-y-4">
+            <h2 class="text-2xl font-bold text-gray-800">Detalles del Cajón</h2>
+            <p class="text-gray-600" id="tool-info"></p>
+            <p class="text-sm text-gray-500" id="current-user-display"></p>
+            <div id="action-buttons" class="flex flex-col space-y-3 mt-4">
+                <button id="take-btn" class="w-full btn btn-primary hidden">Confirmar Toma</button>
+                <button id="return-btn" class="w-full btn btn-primary hidden">Registrar Devolución</button>
+                <div id="return-options" class="w-full flex flex-col space-y-3 hidden">
+                    <p class="text-sm font-semibold text-gray-700">Estado al devolver:</p>
+                    <button data-estado="Disponible" class="w-full btn btn-secondary estado-btn">Disponible</button>
+                    <button data-estado="Dañada" class="w-full btn btn-secondary estado-btn">Dañada</button>
                 </div>
-                <button id="confirmReturnButton" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors mt-4">
-                    Confirmar Devolución
-                </button>
             </div>
         </div>
 
-        <button id="exportButton" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl shadow transition-colors mt-6">
-            Exportar Registro (CSV)
-        </button>
+        <!-- Action Messages -->
+        <div id="messages-container" class="mt-4 w-full"></div>
+
+        <!-- Export Button -->
+        <div class="mt-6 text-center">
+            <button id="export-btn" class="btn btn-secondary">Exportar Registro (CSV)</button>
+        </div>
+
     </div>
 
-    <!-- Modales para mensajes -->
-    <div id="statusModal" class="modal">
-        <div class="modal-content text-center">
-            <h3 id="modalTitle" class="text-2xl font-bold mb-4"></h3>
-            <p id="modalMessage" class="text-gray-700 mb-6"></p>
-            <button id="closeModal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl">
-                Cerrar
-            </button>
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-xl font-semibold mb-2 text-gray-800"></h3>
+            <p id="modal-message" class="text-gray-600 mb-4"></p>
+            <button id="modal-close-btn" class="btn btn-primary">Cerrar</button>
         </div>
     </div>
 
     <script>
-        const video = document.getElementById('qr-video');
-        const canvasElement = document.getElementById('output-canvas');
-        const canvas = canvasElement.getContext('2d');
-        const loadingMessage = document.getElementById('loadingMessage');
-        const resultContainer = document.getElementById('resultContainer');
-        const dataDisplay = document.getElementById('data-display');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const actionForm = document.getElementById('actionForm');
-        const userNameInput = document.getElementById('userNameInput');
-        const confirmBorrowButton = document.getElementById('confirmBorrowButton');
-        const returnForm = document.getElementById('returnForm');
-        const confirmReturnButton = document.getElementById('confirmReturnButton');
-        const statusModal = document.getElementById('statusModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalMessage = document.getElementById('modalMessage');
-        const closeModalButton = document.getElementById('closeModal');
-        const scannerContainer = document.getElementById('scannerContainer');
-        const exportButton = document.getElementById('exportButton');
-        const cameraSelect = document.getElementById('camera-select');
-        const cameraSelectContainer = document.getElementById('camera-select-container');
-        
-        let isScanning = false;
-        let stream = null;
-        let currentToolId = null;
-        let lastScannedToolId = null; // Variable para controlar el último QR escaneado
+        // Log levels for Firestore
+        // setLogLevel('debug'); // Uncomment for debugging Firestore
 
-        // Base de datos de ejemplo en memoria
-        const herramientasDB = {
+        const showModal = (title, message) => {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-message').innerText = message;
+            document.getElementById('custom-modal').classList.remove('hidden');
+        };
+
+        document.getElementById('modal-close-btn').addEventListener('click', () => {
+            document.getElementById('custom-modal').classList.add('hidden');
+        });
+
+        // =========================================================================
+        // === Database (In-Memory for this demo) ==================================
+        // =========================================================================
+        let registroHistorico = [];
+        let herramientasDB = {
             "escenario1": {
                 herramienta: "llave fija, punta llave fija, taladro",
                 persona: null,
                 fecha_salida: null,
-                fecha_devolucion: null,
-                estado: "Disponible"
+                estado: "Disponible",
+                ultima_persona: null,
+                ultima_salida: null
             },
             "escenario2": {
                 herramienta: "llave fija, taladro, punta llave fija, mazo",
                 persona: null,
                 fecha_salida: null,
-                fecha_devolucion: null,
-                estado: "Disponible"
+                estado: "Disponible",
+                ultima_persona: null,
+                ultima_salida: null
             },
             "escenario3": {
                 herramienta: "punta estrella, taladro, mazo, caja tronillos",
                 persona: "Carlos",
                 fecha_salida: "2025-09-10 10:30",
-                fecha_devolucion: null,
-                estado: "En uso"
+                estado: "En uso",
+                ultima_persona: "Carlos",
+                ultima_salida: "2025-09-10 10:30"
             },
             "escenario4": {
                 herramienta: "lima",
                 persona: null,
                 fecha_salida: null,
-                fecha_devolucion: null,
-                estado: "Dañada"
+                estado: "Dañada",
+                ultima_persona: null,
+                ultima_salida: null
             },
             "escalera": {
                 herramienta: "broca 10mm, macho de rocsa 8 y 10mm, llave allen 8mm, punta estrella,taladro, caja tornillos, casquillo roscado",
                 persona: "Lucía",
                 fecha_salida: "2025-09-10 15:00",
-                fecha_devolucion: null,
-                estado: "En uso"
+                estado: "En uso",
+                ultima_persona: "Lucía",
+                ultima_salida: "2025-09-10 15:00"
             }
         };
 
-        const registro = []; // Para el registro histórico de movimientos
+        let usuarioActual = '';
+        let herramientaEnUso = null; // To track the currently taken tool
 
-        const showModal = (title, message) => {
-            modalTitle.textContent = title;
-            modalMessage.textContent = message;
-            statusModal.style.display = 'flex';
-        };
+        // =========================================================================
+        // === UI State and Logic ==================================================
+        // =========================================================================
+        const initialView = document.getElementById('initial-view');
+        const scannerView = document.getElementById('scanner-view');
+        const confirmView = document.getElementById('confirm-view');
+        const nombreInput = document.getElementById('nombre-usuario');
+        const takeBtn = document.getElementById('take-btn');
+        const returnBtn = document.getElementById('return-btn');
+        const returnOptions = document.getElementById('return-options');
+        const toolInfo = document.getElementById('tool-info');
+        const currentUserDisplay = document.getElementById('current-user-display');
+        const overlay = document.getElementById('overlay');
+        const video = document.getElementById('video');
+        const scannerMessage = document.getElementById('scanner-message');
 
-        const hideModal = () => {
-            statusModal.style.display = 'none';
-        };
-
-        closeModalButton.addEventListener('click', hideModal);
-
-        // Función para obtener las cámaras y llenar el select
-        const getCameras = async () => {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                
-                if (videoDevices.length > 0) {
-                    cameraSelectContainer.classList.remove('hidden');
-                    cameraSelect.innerHTML = ''; // Limpiar opciones existentes
-                    videoDevices.forEach(device => {
-                        const option = document.createElement('option');
-                        option.value = device.deviceId;
-                        option.textContent = device.label || `Cámara ${cameraSelect.options.length + 1}`;
-                        cameraSelect.appendChild(option);
-                    });
-                } else {
-                    cameraSelectContainer.classList.add('hidden');
-                    showModal("Error", "No se encontraron cámaras disponibles.");
-                }
-            } catch (e) {
-                showModal("Error", "No se pudo acceder a la lista de cámaras. Revisa los permisos.");
+        const displayView = (view) => {
+            initialView.classList.add('hidden');
+            scannerView.classList.add('hidden');
+            confirmView.classList.add('hidden');
+            view.classList.remove('hidden');
+            if (view === scannerView) {
+                scannerView.classList.remove('flex');
+                scannerView.classList.add('flex');
+            } else {
+                scannerView.classList.remove('flex');
+                scannerView.classList.add('hidden');
             }
         };
-        
-        // Función para iniciar el escáner
+
+        document.getElementById('iniciar-app-btn').addEventListener('click', () => {
+            const nombre = nombreInput.value.trim();
+            if (nombre === '') {
+                showModal('Error', 'Por favor, introduce tu nombre para continuar.');
+            } else {
+                usuarioActual = nombre;
+                currentUserDisplay.innerText = `Usuario actual: ${usuarioActual}`;
+                displayView(scannerView);
+                startScanner();
+            }
+        });
+
+        document.getElementById('stop-scanner-btn').addEventListener('click', () => {
+            stopScanner();
+            displayView(initialView);
+        });
+
+        // =========================================================================
+        // === QR Scanner Logic ====================================================
+        // =========================================================================
+        let videoStream;
+        let qrCodeWorker;
+
         const startScanner = async () => {
-            const userName = userNameInput.value.trim();
-            if (userName === "") {
-                showModal("Error", "Por favor, introduce tu nombre antes de escanear.");
-                return;
-            }
-            if (lastScannedToolId !== null) {
-                showModal("Aviso", "Debes devolver la herramienta actual antes de tomar otra.");
-                return;
-            }
-
-            isScanning = true;
-            loadingMessage.style.display = 'flex';
-            resultContainer.classList.add('hidden');
-            startButton.classList.add('hidden');
-            stopButton.classList.remove('hidden');
-            scannerContainer.classList.remove('hidden');
-            userNameInput.disabled = true;
-            cameraSelect.disabled = true;
-
-            const selectedDeviceId = cameraSelect.value;
-            const constraints = selectedDeviceId ? { video: { deviceId: selectedDeviceId } } : { video: true };
-            
             try {
-                const s = await navigator.mediaDevices.getUserMedia(constraints);
-                stream = s;
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
+                // Try to get the back camera
+                const constraints = { video: { facingMode: 'environment' } };
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = videoStream;
                 video.play();
-                requestAnimationFrame(tick);
-                loadingMessage.style.display = 'none';
-            } catch (e) {
-                isScanning = false;
-                loadingMessage.style.display = 'none';
-                showModal("Error", "No se pudo acceder a la cámara. Revisa los permisos.");
-                startButton.classList.remove('hidden');
-                stopButton.classList.add('hidden');
-                scannerContainer.classList.add('hidden');
-                userNameInput.disabled = false;
-                cameraSelect.disabled = false;
+                qrCodeWorker = setInterval(tick, 100);
+            } catch (err) {
+                console.error("No se pudo acceder a la cámara:", err);
+                scannerMessage.innerText = "Error: No se pudo acceder a la cámara. Por favor, asegúrate de dar permiso.";
+                showModal('Error', 'No se pudo acceder a la cámara. Asegúrate de dar los permisos necesarios.');
             }
         };
 
-        // Función para detener el escáner
         const stopScanner = () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
             }
-            isScanning = false;
-            video.srcObject = null;
-            // Solo muestra el botón de inicio si no hay una herramienta en uso
-            if (lastScannedToolId === null) {
-                startButton.classList.remove('hidden');
-            }
-            stopButton.classList.add('hidden');
-            scannerContainer.classList.add('hidden');
-            userNameInput.disabled = false;
-            cameraSelect.disabled = false;
-        };
-        
-        const drawFocusRectangle = (color) => {
-            canvas.beginPath();
-            const rectSize = Math.min(canvasElement.width, canvasElement.height) * 0.7;
-            const x = (canvasElement.width - rectSize) / 2;
-            const y = (canvasElement.height - rectSize) / 2;
-            canvas.strokeStyle = color;
-            canvas.lineWidth = 4;
-            canvas.rect(x, y, rectSize, rectSize);
-            canvas.stroke();
+            clearInterval(qrCodeWorker);
         };
 
         const tick = () => {
-            if (!isScanning) return;
-
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvasElement.hidden = false;
-                canvasElement.height = video.videoHeight;
-                canvasElement.width = video.videoWidth;
-                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-                
-                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const canvas = document.createElement('canvas');
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
-                
+
                 if (code) {
-                    drawFocusRectangle("green");
-                    drawLine(code.location.topLeftCorner, code.location.topRightCorner, "green");
-                    drawLine(code.location.topRightCorner, code.location.bottomRightCorner, "green");
-                    drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, "green");
-                    drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, "green");
-                    stopScanner();
-                    processQR(code.data);
+                    overlay.style.borderColor = 'green';
+                    handleQrCode(code.data);
                 } else {
-                    drawFocusRectangle("red");
+                    overlay.style.borderColor = 'red';
                 }
             }
-            requestAnimationFrame(tick);
         };
 
-        const drawLine = (begin, end, color) => {
-            canvas.beginPath();
-            canvas.moveTo(begin.x, begin.y);
-            canvas.lineTo(end.x, end.y);
-            canvas.lineWidth = 4;
-            canvas.strokeStyle = color;
-            canvas.stroke();
-        };
-
-        // Función para procesar los datos del QR
-        const processQR = (data) => {
+        const handleQrCode = (data) => {
+            stopScanner();
+            let qrData;
             try {
-                const qrData = JSON.parse(data);
-                const toolId = qrData.id_cajon;
-
-                if (herramientasDB[toolId]) {
-                    const toolInfo = herramientasDB[toolId];
-                    currentToolId = toolId;
-                    
-                    if (lastScannedToolId === null) {
-                        // Es una toma
-                        if (toolInfo.estado === "Disponible") {
-                            lastScannedToolId = toolId;
-                            displayToolInfo(toolInfo, toolId);
-                            resultContainer.classList.remove('hidden');
-                            actionForm.classList.remove('hidden');
-                            returnForm.classList.add('hidden');
-                        } else {
-                            showModal("Aviso", `La herramienta no está disponible. Estado: ${toolInfo.estado}.`);
-                        }
-                    } else if (lastScannedToolId === toolId) {
-                        // Es una devolución
-                        displayToolInfo(toolInfo, toolId);
-                        resultContainer.classList.remove('hidden');
-                        actionForm.classList.add('hidden');
-                        returnForm.classList.remove('hidden');
-                    } else {
-                        // El usuario ha escaneado un QR diferente
-                        showModal("Error", "Debes escanear el mismo código QR que tomaste para registrar la devolución.");
-                        startButton.classList.remove('hidden'); // Reactivar el escáner
-                    }
-                } else {
-                    showModal("Error", `ID de cajón "${toolId}" no encontrado en la base de datos.`);
-                    startButton.classList.remove('hidden'); // Reactivar el escáner
-                }
+                qrData = JSON.parse(data);
             } catch (e) {
-                showModal("Error", "Formato de código QR inválido. Debe ser un JSON con 'id_cajon'.");
-                startButton.classList.remove('hidden'); // Reactivar el escáner
-            }
-        };
-
-        const displayToolInfo = (info, id) => {
-            dataDisplay.innerHTML = `
-                <div class="flex items-center">
-                    <span class="font-semibold text-gray-600 mr-2">Herramienta:</span>
-                    <span class="text-gray-800">${info.herramienta}</span>
-                </div>
-                <div class="flex items-center">
-                    <span class="font-semibold text-gray-600 mr-2">Estado:</span>
-                    <span class="text-gray-800 font-bold">${info.estado}</span>
-                </div>
-                <div class="flex items-center">
-                    <span class="font-semibold text-gray-600 mr-2">Cajón ID:</span>
-                    <span class="text-gray-800">${id}</span>
-                </div>
-                <div class="flex items-center">
-                    <span class="font-semibold text-gray-600 mr-2">Tomada por:</span>
-                    <span class="text-gray-800">${info.persona || "Nadie"}</span>
-                </div>
-                <div class="flex items-center">
-                    <span class="font-semibold text-gray-600 mr-2">Fecha de salida:</span>
-                    <span class="text-gray-800">${info.fecha_salida || "N/A"}</span>
-                </div>
-            `;
-        };
-
-        // Evento para confirmar la toma de la herramienta
-        confirmBorrowButton.addEventListener('click', () => {
-            const userName = userNameInput.value.trim();
-            const tool = herramientasDB[currentToolId];
-
-            if (tool.estado === "Disponible") {
-                const now = new Date();
-                tool.persona = userName;
-                tool.fecha_salida = now.toLocaleString();
-                tool.estado = "En uso";
-
-                // Agregar al registro histórico
-                registro.push({
-                    herramienta: tool.herramienta,
-                    cajon: currentToolId,
-                    persona: userName,
-                    tipo: "Toma",
-                    fecha_hora: now.toLocaleString(),
-                    estado_devuelto: null
-                });
-
-                showModal("Éxito", `¡Herramienta "${tool.herramienta}" tomada por ${userName} correctamente!`);
-                displayToolInfo(tool, currentToolId);
-                resultContainer.classList.add('hidden');
-                stopButton.classList.add('hidden'); // Esconder el botón de detener
-                startButton.classList.add('hidden'); // Esconder el botón de iniciar
-            } else {
-                showModal("Error", `La herramienta no está disponible. Estado actual: ${tool.estado}`);
-            }
-        });
-        
-        // Evento para confirmar la devolución
-        confirmReturnButton.addEventListener('click', () => {
-            const tool = herramientasDB[currentToolId];
-            const returnStatus = document.querySelector('input[name="returnStatus"]:checked').value;
-            const now = new Date();
-
-            if (tool.estado === "En uso" && tool.persona === userNameInput.value.trim() && currentToolId === lastScannedToolId) {
-                tool.fecha_devolucion = now.toLocaleString();
-                tool.estado = returnStatus;
-                
-                // Agregar al registro histórico
-                registro.push({
-                    herramienta: tool.herramienta,
-                    cajon: currentToolId,
-                    persona: userNameInput.value.trim(),
-                    tipo: "Devolución",
-                    fecha_hora: now.toLocaleString(),
-                    estado_devuelto: returnStatus
-                });
-
-                tool.persona = null;
-                tool.fecha_salida = null;
-                tool.fecha_devolucion = null;
-
-                // Restablecer el estado
-                lastScannedToolId = null;
-
-                showModal("Éxito", `¡Herramienta "${tool.herramienta}" devuelta correctamente! Estado: ${returnStatus}`);
-                displayToolInfo(tool, currentToolId);
-                resultContainer.classList.add('hidden');
-                startButton.classList.remove('hidden'); // Mostrar el botón de iniciar para tomar otra herramienta
-            } else {
-                showModal("Error", "No puedes devolver esta herramienta. Es posible que no la hayas tomado tú.");
-            }
-        });
-
-        // Evento para exportar a CSV
-        exportButton.addEventListener('click', () => {
-            if (registro.length === 0) {
-                showModal("Aviso", "No hay datos de registro para exportar.");
+                showModal('Error', 'Código QR no válido. Debe contener datos en formato JSON.');
+                displayView(scannerView);
+                startScanner();
                 return;
             }
 
-            const headers = ["Herramienta", "Cajon", "Persona", "Tipo", "Fecha_Hora", "Estado_Devuelto"];
-            const csvRows = [
-                headers.join(';'),
-                ...registro.map(row => headers.map(header => `"${row[header.toLowerCase()]}"`).join(';'))
-            ];
-            const csvString = csvRows.join('\n');
-            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const toolID = qrData.id_cajon;
+            const tool = herramientasDB[toolID];
+
+            if (!tool) {
+                showModal('Error', `La herramienta con el ID "${toolID}" no se ha encontrado en la base de datos.`);
+                displayView(scannerView);
+                startScanner();
+                return;
+            }
+
+            // --- Logic to handle tool state ---
+            if (tool.estado === "En uso" && tool.persona === usuarioActual) {
+                herramientaEnUso = toolID;
+                displayConfirmation(toolID, tool, 'devolver');
+            } else if (tool.estado === "En uso" && tool.persona !== usuarioActual) {
+                showModal('Error', `Esta herramienta ya está en uso por ${tool.persona}. No puedes tomarla.`);
+                displayView(scannerView);
+                startScanner();
+            } else if (tool.estado === "Dañada") {
+                showModal('Error', 'Esta herramienta está dañada y no se puede tomar.');
+                displayView(scannerView);
+                startScanner();
+            } else if (herramientaEnUso) {
+                showModal('Error', 'Ya tienes una herramienta registrada. Debes devolverla antes de tomar otra.');
+                displayView(scannerView);
+                startScanner();
+            } else {
+                herramientaEnUso = toolID;
+                displayConfirmation(toolID, tool, 'tomar');
+            }
+        };
+
+        const displayConfirmation = (id, tool, action) => {
+            let badgeClass = 'status-disponible';
+            if (tool.estado === 'En uso') badgeClass = 'status-en-uso';
+            if (tool.estado === 'Dañada') badgeClass = 'status-danada';
+
+            toolInfo.innerHTML = `
+                <div class="mb-2 font-semibold text-gray-800 text-lg">${id}</div>
+                <div class="text-gray-700">Herramientas: ${tool.herramienta}</div>
+                <div class="mt-2 text-sm">
+                    <span class="${badgeClass} status-badge">${tool.estado}</span>
+                </div>
+            `;
+            
+            takeBtn.classList.add('hidden');
+            returnBtn.classList.add('hidden');
+            returnOptions.classList.add('hidden');
+            
+            if (action === 'tomar') {
+                takeBtn.classList.remove('hidden');
+            } else if (action === 'devolver') {
+                returnBtn.classList.remove('hidden');
+            }
+            
+            displayView(confirmView);
+        };
+
+        takeBtn.addEventListener('click', () => {
+            const toolID = herramientaEnUso;
+            const tool = herramientasDB[toolID];
+
+            const now = new Date();
+            const fechaSalida = now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+
+            tool.persona = usuarioActual;
+            tool.fecha_salida = fechaSalida;
+            tool.estado = 'En uso';
+            tool.ultima_persona = usuarioActual;
+            tool.ultima_salida = fechaSalida;
+
+            registroHistorico.push({
+                cajon_id: toolID,
+                herramientas: tool.herramienta,
+                persona: usuarioActual,
+                tipo_movimiento: 'Salida',
+                fecha: now.toISOString(),
+                estado_devolucion: null
+            });
+
+            showModal('¡Listo!', `Has tomado la herramienta de "${toolID}".`);
+            displayView(scannerView);
+            startScanner();
+        });
+
+        returnBtn.addEventListener('click', () => {
+            returnBtn.classList.add('hidden');
+            returnOptions.classList.remove('hidden');
+        });
+
+        document.querySelectorAll('.estado-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const toolID = herramientaEnUso;
+                const tool = herramientasDB[toolID];
+                const estadoDevuelto = btn.getAttribute('data-estado');
+
+                const now = new Date();
+                const fechaDevolucion = now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+
+                tool.persona = null;
+                tool.fecha_salida = null;
+                tool.estado = estadoDevuelto;
+                tool.fecha_devolucion = fechaDevolucion;
+
+                registroHistorico.push({
+                    cajon_id: toolID,
+                    herramientas: tool.herramienta,
+                    persona: usuarioActual,
+                    tipo_movimiento: 'Devolución',
+                    fecha: now.toISOString(),
+                    estado_devolucion: estadoDevuelto
+                });
+                
+                herramientaEnUso = null; // Free up the tool slot
+                showModal('Devolución Registrada', `Has devuelto la herramienta de "${toolID}" con el estado: ${estadoDevuelto}.`);
+                displayView(scannerView);
+                startScanner();
+            });
+        });
+
+        // =========================================================================
+        // === Export Logic ========================================================
+        // =========================================================================
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if (registroHistorico.length === 0) {
+                showModal('Error', 'No hay datos en el registro para exportar.');
+                return;
+            }
+
+            let csv = 'Cajón ID,Herramientas,Persona,Tipo de Movimiento,Fecha,Estado de Devolución\n';
+            registroHistorico.forEach(registro => {
+                const fila = [
+                    `"${registro.cajon_id}"`,
+                    `"${registro.herramientas.replace(/"/g, '""')}"`, // Handle commas in tool names
+                    `"${registro.persona}"`,
+                    `"${registro.tipo_movimiento}"`,
+                    `"${registro.fecha}"`,
+                    `"${registro.estado_devolucion || 'N/A'}"`
+                ].join(',');
+                csv += fila + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
@@ -516,15 +476,7 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            showModal("Éxito", "El registro se ha exportado a un archivo CSV.");
         });
-
-        startButton.addEventListener('click', startScanner);
-        stopButton.addEventListener('click', stopScanner);
-
-        // Llama a esta función al cargar la página para rellenar el selector de cámaras
-        window.addEventListener('load', getCameras);
     </script>
 </body>
 </html>
-
